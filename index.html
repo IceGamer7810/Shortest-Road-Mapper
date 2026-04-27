@@ -1,0 +1,1021 @@
+<!doctype html>
+<html lang="hu">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shortest Road Mapper</title>
+    <style>
+      :root{
+        --bg: #0b1020;
+        --panel: rgba(255,255,255,0.06);
+        --panel2: rgba(255,255,255,0.08);
+        --text: rgba(255,255,255,0.92);
+        --muted: rgba(255,255,255,0.66);
+        --border: rgba(255,255,255,0.12);
+        --shadow: 0 10px 35px rgba(0,0,0,0.35);
+        --accent: #7c5cff;
+        --lime: #84cc16;
+        --danger: #ef4444;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+        --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      }
+      *{ box-sizing: border-box; }
+      html, body{ height: 100%; }
+      body{
+        margin: 0;
+        font-family: var(--sans);
+        color: var(--text);
+        background:
+          radial-gradient(1000px 500px at 20% 0%, rgba(124,92,255,0.25), transparent 60%),
+          radial-gradient(900px 600px at 90% 10%, rgba(132,204,22,0.16), transparent 55%),
+          radial-gradient(1000px 700px at 50% 100%, rgba(56,189,248,0.10), transparent 60%),
+          linear-gradient(180deg, #070a14, var(--bg));
+      }
+
+      .topbar{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 18px;
+        border-bottom: 1px solid var(--border);
+        background: rgba(0,0,0,0.15);
+        backdrop-filter: blur(10px);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      .brand .title{ font-weight: 700; letter-spacing: 0.2px; }
+      .brand .subtitle{ font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+      .app{
+        padding: 18px;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      .stage{ display:none; }
+      .stage.stage-visible{ display:block; }
+
+      .controls{
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 12px;
+        box-shadow: var(--shadow);
+      }
+      .control-row{
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .hint{
+        color: var(--muted);
+        font-size: 13px;
+        flex: 1;
+        min-width: 260px;
+      }
+      .status{
+        color: rgba(255,255,255,0.78);
+        margin-left: auto;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      .btn{
+        border: 1px solid var(--border);
+        background: var(--panel2);
+        color: var(--text);
+        border-radius: 12px;
+        padding: 10px 12px;
+        cursor: pointer;
+        line-height: 1;
+        user-select: none;
+      }
+      .btn:hover{ border-color: rgba(255,255,255,0.22); }
+      .btn:disabled{ opacity: 0.55; cursor: not-allowed; }
+      #okBtn:not(:disabled){
+        border-color: rgba(132,204,22,0.75);
+        background: rgba(132,204,22,0.18);
+      }
+      #okBtn:not(:disabled):hover{ border-color: rgba(132,204,22,0.95); }
+
+      .file{
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border: 1px solid var(--border);
+        background: var(--panel2);
+        border-radius: 12px;
+        padding: 9px 12px;
+        cursor: pointer;
+      }
+      .file input{ display:none; }
+
+      .picked{
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: rgba(0,0,0,0.14);
+      }
+      .swatch{
+        width: 28px;
+        height: 28px;
+        border-radius: 9px;
+        border: 1px solid rgba(255,255,255,0.18);
+        background: repeating-linear-gradient(45deg, rgba(255,255,255,0.14) 0 8px, rgba(0,0,0,0.14) 8px 16px);
+      }
+      .picked-title{ font-size: 11px; color: var(--muted); }
+      .picked-rgb{ font-family: var(--mono); font-size: 12px; }
+
+      .slider{
+        display:flex;
+        align-items:center;
+        gap:10px;
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: rgba(0,0,0,0.14);
+      }
+      .slider label{ font-size: 12px; color: var(--muted); }
+      .slider input[type="range"]{ width: 240px; }
+
+      .toggle{
+        display:flex;
+        align-items:center;
+        gap: 8px;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: rgba(0,0,0,0.14);
+        color: rgba(255,255,255,0.86);
+        font-size: 13px;
+      }
+
+      .panes{
+        display:grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-top: 14px;
+      }
+      @media (max-width: 900px){
+        .panes{ grid-template-columns: 1fr; }
+      }
+      .pane{
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 12px;
+        box-shadow: var(--shadow);
+      }
+      .pane-title{
+        font-size: 13px;
+        color: rgba(255,255,255,0.82);
+        margin-bottom: 10px;
+      }
+
+      .canvas-box{
+        position: relative;
+        border-radius: 14px;
+        border: 1px solid rgba(255,255,255,0.10);
+        overflow: hidden;
+      }
+      .canvas-square{
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        display:block;
+      }
+      .canvas-full{ display:block; }
+      .overlay{ position:absolute; inset: 0; }
+      .no-pointer{ pointer-events: none; }
+
+      .checker{
+        background:
+          linear-gradient(45deg, rgba(255,255,255,0.08) 25%, transparent 25%) -12px 0/24px 24px,
+          linear-gradient(-45deg, rgba(255,255,255,0.08) 25%, transparent 25%) -12px 0/24px 24px,
+          linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.08) 75%) -12px 0/24px 24px,
+          linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.08) 75%) -12px 0/24px 24px,
+          rgba(0,0,0,0.10);
+      }
+
+      .viewer{ margin-top: 14px; }
+      .scroll{ max-height: calc(100vh - 220px); overflow: auto; }
+
+      /* Stage 1 = automatikus pipetta */
+      #stage1 #origCanvas{ cursor: crosshair; }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <div class="title">Shortest Road Mapper</div>
+        <div class="subtitle">Képfeldolgozás + interaktív legrövidebb út (csak kliensoldal)</div>
+      </div>
+    </header>
+
+    <main class="app">
+      <section id="stage1" class="stage stage-visible">
+        <div class="controls">
+          <div class="control-row">
+            <label class="file">
+              <input id="fileInput" type="file" accept=".png,.jpg,.jpeg,.bmp,image/png,image/jpeg,image/bmp" />
+              <span>Kép feltöltése</span>
+            </label>
+
+            <div class="picked">
+              <div class="swatch" id="swatch" title="Kiválasztott szín"></div>
+              <div class="picked-text">
+                <div class="picked-title">Kiválasztott szín</div>
+                <div class="picked-rgb" id="pickedRgb">—</div>
+              </div>
+            </div>
+
+            <div class="slider">
+              <label for="threshold">Threshold</label>
+              <input id="threshold" type="range" min="0" max="255" value="0" disabled />
+              <div class="status" id="thresholdVal">0</div>
+            </div>
+
+            <button id="okBtn" class="btn" type="button" disabled>OK</button>
+
+            <div class="hint" id="stage1Hint">
+              Tölts fel egy képet, majd kattints a bal oldali képen egy színre.
+            </div>
+          </div>
+        </div>
+
+        <div class="panes">
+          <div class="pane">
+            <div class="pane-title">Eredeti</div>
+            <div class="canvas-box checker">
+              <canvas id="origCanvas" class="canvas-square" width="1" height="1"></canvas>
+              <canvas id="origOverlay" class="canvas-square overlay no-pointer" width="1" height="1"></canvas>
+            </div>
+          </div>
+
+          <div class="pane">
+            <div class="pane-title">Előnézet (csak a kiválasztott szín)</div>
+            <div class="canvas-box checker">
+              <canvas id="previewCanvas" class="canvas-square" width="1" height="1"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="stage2" class="stage">
+        <div class="controls">
+          <div class="control-row">
+            <button id="resetBtn" class="btn" type="button">Pontok / útvonal törlése</button>
+            <button id="backBtn" class="btn" type="button">Vissza</button>
+
+            <label class="toggle">
+              <input id="diagToggle" type="checkbox" checked />
+              <span>8 irányú szomszédság</span>
+            </label>
+
+            <div class="hint">
+              Kattints két, nem átlátszó pixelre: kezdőpont → végpont. (A* legrövidebb út)
+            </div>
+
+            <div class="status" id="statusText"></div>
+          </div>
+        </div>
+
+        <div class="viewer">
+          <div class="canvas-box checker scroll">
+            <canvas id="activeCanvas" class="canvas-full" width="1" height="1"></canvas>
+            <canvas id="pathCanvas" class="canvas-full overlay" width="1" height="1"></canvas>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      // Single-file build: works when opened directly (file://), no module/CORS issues.
+      (() => {
+        const $ = (sel) => document.querySelector(sel);
+
+        const els = {
+          stage1: $("#stage1"),
+          stage2: $("#stage2"),
+          fileInput: $("#fileInput"),
+          okBtn: $("#okBtn"),
+          threshold: $("#threshold"),
+          thresholdVal: $("#thresholdVal"),
+          swatch: $("#swatch"),
+          pickedRgb: $("#pickedRgb"),
+          stage1Hint: $("#stage1Hint"),
+          statusText: $("#statusText"),
+          resetBtn: $("#resetBtn"),
+          backBtn: $("#backBtn"),
+          diagToggle: $("#diagToggle"),
+
+          origCanvas: $("#origCanvas"),
+          origOverlay: $("#origOverlay"),
+          previewCanvas: $("#previewCanvas"),
+          activeCanvas: $("#activeCanvas"),
+          pathCanvas: $("#pathCanvas"),
+        };
+
+        const MAX_PREVIEW_DIM = 512;
+
+        const state = {
+          phase: "stage1",
+          img: null,
+          full: { w: 0, h: 0, imageData: null },
+          preview: { w: 0, h: 0, imageData: null },
+          display: {
+            origDrawRect: { dx: 0, dy: 0, dw: 0, dh: 0 },
+            previewDrawRect: { dx: 0, dy: 0, dw: 0, dh: 0 },
+          },
+          active: { imageData: null, w: 0, h: 0 },
+          selection: { start: null, end: null },
+          path: { running: false, cancelToken: 0 },
+          pathfinder: null,
+        };
+
+        let chosenRgb = null; // {r,g,b}
+        let chosenThreshold = 0;
+
+        init();
+
+        function init() {
+          wireUi();
+          resizeStage1Canvases();
+          renderEmptyStage1();
+          setStatus("");
+        }
+
+        function wireUi() {
+          window.addEventListener("resize", () => {
+            if (state.phase === "stage1") {
+              resizeStage1Canvases();
+              if (state.img) renderStage1();
+            }
+          });
+
+          els.fileInput.addEventListener("change", async () => {
+            const file = els.fileInput.files && els.fileInput.files[0];
+            if (!file) return;
+            try {
+              await loadImageFromFile(file);
+            } catch (err) {
+              console.error(err);
+              alert("A képet nem sikerült betölteni.");
+            }
+          });
+
+          els.threshold.addEventListener("input", () => {
+            chosenThreshold = clampInt(parseInt(els.threshold.value, 10), 0, 255);
+            els.thresholdVal.textContent = String(chosenThreshold);
+            if (chosenRgb && state.preview.imageData) renderPreviewFiltered();
+          });
+
+          els.okBtn.addEventListener("click", async () => {
+            if (!state.full.imageData || !chosenRgb) return;
+            await applyFilterAndEnterStage2();
+          });
+
+          // Stage1: automatikus pipetta -> kattintás színválasztás
+          els.origCanvas.addEventListener("click", (ev) => {
+            if (!state.full.imageData) return;
+            const pos = getCanvasClickPos(ev, els.origCanvas);
+            const src = mapDisplayToSource(pos, state.display.origDrawRect, state.full.w, state.full.h);
+            if (!src) return;
+            chosenRgb = getRgbAt(state.full.imageData, src.x, src.y);
+            setChosenColor(chosenRgb);
+            renderPreviewFiltered();
+          });
+
+          els.resetBtn.addEventListener("click", () => resetSelectionAndPath());
+          els.backBtn.addEventListener("click", () => goBackToStage1());
+
+          els.pathCanvas.addEventListener("click", async (ev) => {
+            if (state.phase !== "stage2") return;
+            if (!state.active.imageData) return;
+            if (state.path.running) return;
+
+            const p = getCanvasClickPos(ev, els.pathCanvas);
+            const x = clampInt(Math.floor(p.x), 0, state.active.w - 1);
+            const y = clampInt(Math.floor(p.y), 0, state.active.h - 1);
+            if (!isWalkable(state.active.imageData, state.active.w, x, y)) {
+              setStatus("Érvénytelen pont: csak nem átlátszó pixelen lehet kijelölni.");
+              flashInvalidPoint(x, y);
+              return;
+            }
+
+            setStatus("");
+            if (!state.selection.start) {
+              state.selection.start = { x, y };
+              renderStage2Overlay(true);
+              return;
+            }
+            if (!state.selection.end) {
+              state.selection.end = { x, y };
+              renderStage2Overlay(true);
+              await runPathfinding();
+              return;
+            }
+
+            // 3. kattintás: új kezdőpont
+            state.selection.start = { x, y };
+            state.selection.end = null;
+            renderStage2Overlay(true);
+          });
+
+          els.diagToggle.addEventListener("change", () => {
+            if (state.phase !== "stage2") return;
+            if (state.selection.start && state.selection.end && !state.path.running) runPathfinding();
+          });
+
+          window.addEventListener("keydown", (e) => {
+            if ((e.key === "r" || e.key === "R") && state.phase === "stage2") resetSelectionAndPath();
+          });
+        }
+
+        async function loadImageFromFile(file) {
+          if (!isSupportedFile(file)) {
+            alert("Nem támogatott fájlformátum. (PNG, JPG, JPEG, BMP)");
+            els.fileInput.value = "";
+            return;
+          }
+
+          resetToStage1();
+          setStatus("");
+          els.stage1Hint.textContent = "Betöltés...";
+
+          const img = await fileToImage(file);
+          state.img = img;
+
+          const fullCanvas = document.createElement("canvas");
+          fullCanvas.width = img.naturalWidth || img.width;
+          fullCanvas.height = img.naturalHeight || img.height;
+          const fctx = must2d(fullCanvas);
+          fctx.imageSmoothingEnabled = true;
+          fctx.drawImage(img, 0, 0);
+          state.full.w = fullCanvas.width;
+          state.full.h = fullCanvas.height;
+          state.full.imageData = fctx.getImageData(0, 0, state.full.w, state.full.h);
+
+          const fit = fitWithin(state.full.w, state.full.h, MAX_PREVIEW_DIM, MAX_PREVIEW_DIM);
+          const pCanvas = document.createElement("canvas");
+          pCanvas.width = fit.w;
+          pCanvas.height = fit.h;
+          const pctx = must2d(pCanvas);
+          pctx.imageSmoothingEnabled = true;
+          pctx.drawImage(img, 0, 0, fit.w, fit.h);
+          state.preview.w = fit.w;
+          state.preview.h = fit.h;
+          state.preview.imageData = pctx.getImageData(0, 0, fit.w, fit.h);
+
+          els.threshold.disabled = false;
+          els.threshold.value = String(chosenThreshold);
+          els.thresholdVal.textContent = String(chosenThreshold);
+          els.okBtn.disabled = true;
+
+          els.stage1Hint.textContent = "Kattints a bal oldali képen egy színre (pipetta).";
+
+          await nextFrame();
+          resizeStage1Canvases();
+          renderStage1();
+        }
+
+        function resetToStage1() {
+          state.phase = "stage1";
+          state.img = null;
+          state.full = { w: 0, h: 0, imageData: null };
+          state.preview = { w: 0, h: 0, imageData: null };
+          state.active = { imageData: null, w: 0, h: 0 };
+          state.selection = { start: null, end: null };
+          state.path = { running: false, cancelToken: state.path.cancelToken + 1 };
+          state.pathfinder = null;
+
+          chosenRgb = null;
+          els.okBtn.disabled = true;
+          els.threshold.disabled = true;
+          els.pickedRgb.textContent = "—";
+          els.swatch.style.background = "";
+          els.stage1Hint.textContent = "Tölts fel egy képet, majd kattints a bal oldali képen egy színre.";
+          showStage("stage1");
+          renderEmptyStage1();
+        }
+
+        function setChosenColor(rgb) {
+          els.pickedRgb.textContent = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+          els.swatch.style.background = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+          els.okBtn.disabled = false;
+          els.stage1Hint.textContent = "Állíts threshold-ot, ellenőrizd a jobb oldali előnézetet, majd OK.";
+        }
+
+        function resizeStage1Canvases() {
+          sizeCanvasToClient(els.origCanvas);
+          sizeCanvasToClient(els.origOverlay);
+          sizeCanvasToClient(els.previewCanvas);
+        }
+
+        function sizeCanvasToClient(canvas) {
+          const rect = canvas.getBoundingClientRect();
+          const w = Math.max(1, Math.floor(rect.width));
+          const h = Math.max(1, Math.floor(rect.height));
+          if (canvas.width !== w) canvas.width = w;
+          if (canvas.height !== h) canvas.height = h;
+        }
+
+        function renderEmptyStage1() {
+          clearCanvas(must2d(els.origCanvas), els.origCanvas);
+          clearCanvas(must2d(els.previewCanvas), els.previewCanvas);
+          renderOrigOverlay();
+        }
+
+        function renderStage1() {
+          drawToSquareCanvas(els.origCanvas, state.img, state.full.w, state.full.h, (rect) => {
+            state.display.origDrawRect = rect;
+          });
+          renderOrigOverlay();
+
+          if (chosenRgb && state.preview.imageData) {
+            renderPreviewFiltered();
+          } else {
+            drawToSquareCanvas(els.previewCanvas, state.img, state.full.w, state.full.h, (rect) => {
+              state.display.previewDrawRect = rect;
+            });
+          }
+        }
+
+        function renderOrigOverlay() {
+          const ctx = must2d(els.origOverlay);
+          clearCanvas(ctx, els.origOverlay);
+          if (!state.img) return;
+          const { dx, dy, dw, dh } = state.display.origDrawRect;
+          ctx.strokeStyle = "rgba(255,255,255,0.20)";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(dx + 0.5, dy + 0.5, dw - 1, dh - 1);
+          ctx.fillStyle = "rgba(124,92,255,0.10)";
+          ctx.fillRect(dx, dy, dw, dh);
+          ctx.fillStyle = "rgba(255,255,255,0.78)";
+          ctx.font = "12px " + getComputedStyle(document.body).fontFamily;
+          ctx.fillText(chosenRgb ? "Kattints új színhez" : "Kattints szín kiválasztásához", dx + 10, dy + 18);
+        }
+
+        function renderPreviewFiltered() {
+          if (!state.preview.imageData || !chosenRgb) return;
+          const out = filterImageData(state.preview.imageData, chosenRgb, chosenThreshold);
+          const tmp = document.createElement("canvas");
+          tmp.width = out.width;
+          tmp.height = out.height;
+          must2d(tmp).putImageData(out, 0, 0);
+          drawToSquareCanvas(els.previewCanvas, tmp, out.width, out.height, (rect) => {
+            state.display.previewDrawRect = rect;
+          });
+        }
+
+        async function applyFilterAndEnterStage2() {
+          els.okBtn.disabled = true;
+          els.threshold.disabled = true;
+          setStatus("Szűrés folyamatban...");
+          await nextFrame();
+
+          const filtered = filterImageData(state.full.imageData, chosenRgb, chosenThreshold);
+          state.active.imageData = filtered;
+          state.active.w = state.full.w;
+          state.active.h = state.full.h;
+          state.pathfinder = new Pathfinder(state.active.w, state.active.h, state.active.imageData);
+          enterStage2();
+          setStatus("");
+        }
+
+        function enterStage2() {
+          state.phase = "stage2";
+          showStage("stage2");
+          setCanvasPixelSize(els.activeCanvas, state.active.w, state.active.h);
+          setCanvasPixelSize(els.pathCanvas, state.active.w, state.active.h);
+          const act = must2d(els.activeCanvas);
+          act.imageSmoothingEnabled = false;
+          act.putImageData(state.active.imageData, 0, 0);
+          renderStage2Overlay(true);
+        }
+
+        function goBackToStage1() {
+          if (!state.full.imageData || !state.img) {
+            resetToStage1();
+            return;
+          }
+          state.phase = "stage1";
+          state.selection = { start: null, end: null };
+          state.active = { imageData: null, w: 0, h: 0 };
+          state.path = { running: false, cancelToken: state.path.cancelToken + 1 };
+          state.pathfinder = null;
+          els.threshold.disabled = false;
+          els.okBtn.disabled = !chosenRgb;
+          els.stage1Hint.textContent = chosenRgb
+            ? "Állíts threshold-ot, ellenőrizd a jobb oldali előnézetet, majd OK."
+            : "Kattints a bal oldali képen egy színre (pipetta).";
+          showStage("stage1");
+          resizeStage1Canvases();
+          renderStage1();
+        }
+
+        function showStage(which) {
+          els.stage1.classList.toggle("stage-visible", which === "stage1");
+          els.stage2.classList.toggle("stage-visible", which === "stage2");
+        }
+
+        function resetSelectionAndPath() {
+          if (state.phase !== "stage2") return;
+          state.path.cancelToken++;
+          state.path.running = false;
+          state.selection.start = null;
+          state.selection.end = null;
+          setStatus("");
+          renderStage2Overlay(true);
+        }
+
+        function renderStage2Overlay() {
+          const ctx = must2d(els.pathCanvas);
+          clearCanvas(ctx, els.pathCanvas);
+          if (state.selection.start) drawMarker(ctx, state.selection.start, "#22c55e", "S");
+          if (state.selection.end) drawMarker(ctx, state.selection.end, "#ef4444", "E");
+        }
+
+        function drawMarker(ctx, p, color, label) {
+          ctx.save();
+          ctx.fillStyle = color;
+          ctx.strokeStyle = "rgba(0,0,0,0.35)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(p.x + 0.5, p.y + 0.5, 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = "rgba(0,0,0,0.8)";
+          ctx.font = "10px " + getComputedStyle(document.body).fontFamily;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(label, p.x + 0.5, p.y + 0.5);
+          ctx.restore();
+        }
+
+        async function runPathfinding() {
+          if (!state.pathfinder) return;
+          if (!state.selection.start || !state.selection.end) return;
+          const token = ++state.path.cancelToken;
+          state.path.running = true;
+          setStatus("Útvonal-keresés (A*)...");
+          const allowDiagonal = !!els.diagToggle.checked;
+          const result = await state.pathfinder.findPathAsync(
+            state.selection.start,
+            state.selection.end,
+            allowDiagonal,
+            token,
+            (msg) => setStatus(msg)
+          );
+          if (token !== state.path.cancelToken) return;
+          state.path.running = false;
+          if (!result) {
+            if (state.pathfinder.lastAbort === "limit") {
+              setStatus("Megszakítva (túl nagy keresési tér). Próbáld kisebb képpel / szűkebb szűréssel.");
+            } else if (state.pathfinder.lastAbort === "canceled") {
+              setStatus("");
+            } else {
+              setStatus("Nincs útvonal a két pont között ezen a szűrt képen.");
+            }
+            renderStage2Overlay();
+            return;
+          }
+          renderStage2Overlay();
+          drawPathPolyline(result);
+          setStatus(`Kész. Hossz: ${result.length} pixel`);
+        }
+
+        function drawPathPolyline(path) {
+          const ctx = must2d(els.pathCanvas);
+          ctx.save();
+          ctx.strokeStyle = "rgba(255,0,255,0.95)";
+          ctx.lineWidth = 2;
+          ctx.lineJoin = "round";
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(path[0].x + 0.5, path[0].y + 0.5);
+          for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x + 0.5, path[i].y + 0.5);
+          ctx.stroke();
+          ctx.restore();
+          if (state.selection.start) drawMarker(ctx, state.selection.start, "#22c55e", "S");
+          if (state.selection.end) drawMarker(ctx, state.selection.end, "#ef4444", "E");
+        }
+
+        function flashInvalidPoint(x, y) {
+          const ctx = must2d(els.pathCanvas);
+          ctx.save();
+          ctx.strokeStyle = "rgba(239,68,68,0.95)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(x + 0.5, y + 0.5, 7, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+          setTimeout(() => renderStage2Overlay(), 250);
+        }
+
+        function setStatus(text) {
+          els.statusText.textContent = text || "";
+        }
+
+        // Szűrés: csak a threshold-on belüli pixelek maradnak meg,
+        // és a megmaradó pixelek pontosan a kiválasztott színre lesznek színezve.
+        function filterImageData(imageData, rgb, threshold) {
+          const src = imageData.data;
+          const out = new ImageData(imageData.width, imageData.height);
+          const dst = out.data;
+          const tr = rgb.r | 0, tg = rgb.g | 0, tb = rgb.b | 0;
+          const t = threshold | 0;
+          for (let i = 0; i < src.length; i += 4) {
+            const a = src[i + 3];
+            if (a === 0) { dst[i + 3] = 0; continue; }
+            const r = src[i], g = src[i + 1], b = src[i + 2];
+            const dr = abs8(r - tr), dg = abs8(g - tg), db = abs8(b - tb);
+            const d = dr > dg ? (dr > db ? dr : db) : (dg > db ? dg : db);
+            if (d <= t) {
+              dst[i] = tr; dst[i + 1] = tg; dst[i + 2] = tb; dst[i + 3] = 255;
+            } else {
+              dst[i] = r; dst[i + 1] = g; dst[i + 2] = b; dst[i + 3] = 0;
+            }
+          }
+          return out;
+        }
+
+        function isWalkable(imageData, w, x, y) {
+          return imageData.data[(y * w + x) * 4 + 3] !== 0;
+        }
+
+        function getRgbAt(imageData, x, y) {
+          const i = (y * imageData.width + x) * 4;
+          const d = imageData.data;
+          return { r: d[i], g: d[i + 1], b: d[i + 2] };
+        }
+
+        function getCanvasClickPos(ev, canvas) {
+          const rect = canvas.getBoundingClientRect();
+          const sx = canvas.width / rect.width;
+          const sy = canvas.height / rect.height;
+          return { x: (ev.clientX - rect.left) * sx, y: (ev.clientY - rect.top) * sy };
+        }
+
+        function mapDisplayToSource(pos, drawRect, srcW, srcH) {
+          const { dx, dy, dw, dh } = drawRect;
+          const x = pos.x, y = pos.y;
+          if (x < dx || y < dy || x >= dx + dw || y >= dy + dh) return null;
+          const u = (x - dx) / dw;
+          const v = (y - dy) / dh;
+          return {
+            x: clampInt(Math.floor(u * srcW), 0, srcW - 1),
+            y: clampInt(Math.floor(v * srcH), 0, srcH - 1),
+          };
+        }
+
+        function drawToSquareCanvas(targetCanvas, source, srcW, srcH, onRect) {
+          const ctx = must2d(targetCanvas);
+          clearCanvas(ctx, targetCanvas);
+          const cw = targetCanvas.width, ch = targetCanvas.height;
+          const fit = fitWithin(srcW, srcH, cw, ch);
+          const dx = Math.floor((cw - fit.w) / 2);
+          const dy = Math.floor((ch - fit.h) / 2);
+          ctx.imageSmoothingEnabled = true;
+          ctx.drawImage(source, 0, 0, srcW, srcH, dx, dy, fit.w, fit.h);
+          if (onRect) onRect({ dx, dy, dw: fit.w, dh: fit.h });
+        }
+
+        function setCanvasPixelSize(canvas, w, h) {
+          canvas.width = Math.max(1, Math.floor(w));
+          canvas.height = Math.max(1, Math.floor(h));
+          canvas.style.width = `${w}px`;
+          canvas.style.height = `${h}px`;
+        }
+
+        function clearCanvas(ctx, canvas) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function must2d(canvas) {
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+          if (!ctx) throw new Error("2D canvas context not available");
+          return ctx;
+        }
+
+        function fitWithin(w, h, maxW, maxH) {
+          const scale = Math.min(maxW / w, maxH / h);
+          return { w: Math.max(1, Math.floor(w * scale)), h: Math.max(1, Math.floor(h * scale)) };
+        }
+
+        function abs8(n) { return n < 0 ? -n : n; }
+        function clampInt(n, lo, hi) { return n < lo ? lo : n > hi ? hi : n; }
+
+        function isSupportedFile(file) {
+          const type = (file.type || "").toLowerCase();
+          if (type === "image/png" || type === "image/jpeg" || type === "image/bmp") return true;
+          const name = file.name.toLowerCase();
+          return name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".bmp");
+        }
+
+        function fileToImage(file) {
+          return new Promise((resolve, reject) => {
+            const url = URL.createObjectURL(file);
+            const img = new Image();
+            img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+            img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
+            img.src = url;
+          });
+        }
+
+        function nextFrame() {
+          return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+        }
+
+        // --- A* ---
+        class MinHeap {
+          constructor(cap) {
+            this.idx = new Int32Array(Math.max(16, cap));
+            this.f = new Float32Array(this.idx.length);
+            this.size = 0;
+            this.popF = 0;
+          }
+          push(index, f) {
+            if (this.size >= this.idx.length) this._grow();
+            let i = this.size++;
+            this.idx[i] = index;
+            this.f[i] = f;
+            while (i > 0) {
+              const p = (i - 1) >> 1;
+              if (this.f[p] <= f) break;
+              this.idx[i] = this.idx[p];
+              this.f[i] = this.f[p];
+              i = p;
+            }
+            this.idx[i] = index;
+            this.f[i] = f;
+          }
+          pop() {
+            if (this.size === 0) return -1;
+            const out = this.idx[0];
+            this.popF = this.f[0];
+            const lastI = --this.size;
+            if (lastI === 0) return out;
+            const li = this.idx[lastI];
+            const lf = this.f[lastI];
+            let i = 0;
+            while (true) {
+              const l = i * 2 + 1;
+              if (l >= this.size) break;
+              const r = l + 1;
+              let c = l;
+              if (r < this.size && this.f[r] < this.f[l]) c = r;
+              if (this.f[c] >= lf) break;
+              this.idx[i] = this.idx[c];
+              this.f[i] = this.f[c];
+              i = c;
+            }
+            this.idx[i] = li;
+            this.f[i] = lf;
+            return out;
+          }
+          _grow() {
+            const n = this.idx.length * 2;
+            const ni = new Int32Array(n);
+            const nf = new Float32Array(n);
+            ni.set(this.idx);
+            nf.set(this.f);
+            this.idx = ni;
+            this.f = nf;
+          }
+        }
+
+        class Pathfinder {
+          constructor(w, h, imageData) {
+            this.w = w;
+            this.h = h;
+            this.data = imageData.data;
+            this.N = w * h;
+            this.runId = 1;
+            this.stamp = new Uint32Array(this.N);
+            this.g = new Float32Array(this.N);
+            this.prev = new Int32Array(this.N);
+            this.heap = new MinHeap(Math.min(this.N, 1024));
+            this.lastAbort = "";
+          }
+          _walkable(idx) { return this.data[idx * 4 + 3] !== 0; }
+          async findPathAsync(start, end, diag, token, onStatus) {
+            this.lastAbort = "";
+            const w = this.w, h = this.h;
+            const startIdx = start.y * w + start.x;
+            const goalIdx = end.y * w + end.x;
+            if (startIdx === goalIdx) return [start];
+            if (!this._walkable(startIdx) || !this._walkable(goalIdx)) return null;
+
+            const run = ++this.runId;
+            this.heap.size = 0;
+
+            const stamp = this.stamp, g = this.g, prev = this.prev;
+            stamp[startIdx] = run;
+            g[startIdx] = 0;
+            prev[startIdx] = -1;
+            this.heap.push(startIdx, heuristic(start, end, diag));
+
+            const neighbors4 = [
+              { dx: 1, dy: 0, cost: 1 },
+              { dx: -1, dy: 0, cost: 1 },
+              { dx: 0, dy: 1, cost: 1 },
+              { dx: 0, dy: -1, cost: 1 },
+            ];
+            const neighbors8 = neighbors4.concat([
+              { dx: 1, dy: 1, cost: 1.41421356 },
+              { dx: 1, dy: -1, cost: 1.41421356 },
+              { dx: -1, dy: 1, cost: 1.41421356 },
+              { dx: -1, dy: -1, cost: 1.41421356 },
+            ]);
+            const nbs = diag ? neighbors8 : neighbors4;
+
+            let expanded = 0;
+            const YIELD_EVERY = 12000;
+            // Fontos: 8 iránynál több elágazás van, ezért a korábbi "hard limit"
+            // könnyen tévesen "nincs útvonal"-nak látszó megszakítást okozott.
+            // Itt teljes bejárást engedünk (a loop így is yield-el, nem fagy le).
+            const hardLimit = this.N;
+
+            while (this.heap.size > 0) {
+              if (token !== state.path.cancelToken) { this.lastAbort = "canceled"; return null; }
+              const cur = this.heap.pop();
+              if (cur === goalIdx) return reconstruct(prev, w, goalIdx);
+
+              const cx = cur % w;
+              const cy = (cur / w) | 0;
+              const baseG = g[cur];
+              {
+                const dx = abs8(cx - end.x);
+                const dy = abs8(cy - end.y);
+                const bestF = baseG + (diag ? octile(dx, dy) : dx + dy);
+                if (this.heap.popF > bestF + 1e-6) continue;
+              }
+
+              for (let i = 0; i < nbs.length; i++) {
+                const nb = nbs[i];
+                const nx = cx + nb.dx;
+                const ny = cy + nb.dy;
+                if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+                const ni = ny * w + nx;
+                if (!this._walkable(ni)) continue;
+                if (diag && nb.dx !== 0 && nb.dy !== 0) {
+                  const a = cy * w + nx;
+                  const b = ny * w + cx;
+                  if (!this._walkable(a) || !this._walkable(b)) continue;
+                }
+                const tentative = baseG + nb.cost;
+                if (stamp[ni] !== run || tentative < g[ni]) {
+                  stamp[ni] = run;
+                  g[ni] = tentative;
+                  prev[ni] = cur;
+                  const hx = abs8(nx - end.x);
+                  const hy = abs8(ny - end.y);
+                  const f = tentative + (diag ? octile(hx, hy) : hx + hy);
+                  this.heap.push(ni, f);
+                }
+              }
+
+              expanded++;
+              if (expanded % YIELD_EVERY === 0) {
+                onStatus(`Keresés... vizsgált csomópontok: ${expanded.toLocaleString("hu-HU")}`);
+                await nextFrame();
+              }
+              if (expanded > hardLimit) {
+                this.lastAbort = "limit";
+                onStatus("Megszakítva: túl sok csomópont (kép túl nagy / túl széles terület).");
+                return null;
+              }
+            }
+            this.lastAbort = "no_path";
+            return null;
+          }
+        }
+
+        function reconstruct(prev, w, goalIdx) {
+          const out = [];
+          let cur = goalIdx;
+          while (cur !== -1) {
+            out.push({ x: cur % w, y: (cur / w) | 0 });
+            cur = prev[cur];
+          }
+          out.reverse();
+          return out;
+        }
+        function heuristic(a, b, diag) {
+          const dx = abs8(a.x - b.x);
+          const dy = abs8(a.y - b.y);
+          return diag ? octile(dx, dy) : dx + dy;
+        }
+        function octile(dx, dy) {
+          const F = 1.41421356 - 1;
+          return dx < dy ? F * dx + dy : F * dy + dx;
+        }
+      })();
+    </script>
+  </body>
+</html>
